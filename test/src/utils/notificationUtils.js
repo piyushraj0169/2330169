@@ -1,3 +1,5 @@
+import { logInfo } from './logger'
+
 const PRIORITY_ORDER = {
   Placement: 3,
   Result: 2,
@@ -61,7 +63,10 @@ function parseNotificationTimestamp(notification) {
 }
 
 export function getTopPriorityNotifications(notifications = []) {
+  void logInfo('utils', 'Priority calculation started')
+
   if (!Array.isArray(notifications) || notifications.length === 0) {
+    void logInfo('utils', 'Top 10 notifications generated')
     return []
   }
 
@@ -84,7 +89,7 @@ export function getTopPriorityNotifications(notifications = []) {
     return accumulator
   }, new Map())
 
-  return Array.from(normalizedNotifications.values())
+  const result = Array.from(normalizedNotifications.values())
     .sort((left, right) => {
       const leftRank = PRIORITY_ORDER[left.type] || 0
       const rightRank = PRIORITY_ORDER[right.type] || 0
@@ -96,6 +101,9 @@ export function getTopPriorityNotifications(notifications = []) {
       return parseNotificationTimestamp(right) - parseNotificationTimestamp(left)
     })
     .slice(0, 10)
+
+  void logInfo('utils', 'Top 10 notifications generated')
+  return result
 }
 
 /**

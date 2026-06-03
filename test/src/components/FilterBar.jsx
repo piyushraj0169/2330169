@@ -1,12 +1,21 @@
-import { memo } from 'react'
+import { memo, useCallback } from 'react'
 import Box from '@mui/material/Box'
 import FormControl from '@mui/material/FormControl'
 import InputLabel from '@mui/material/InputLabel'
 import Select from '@mui/material/Select'
 import MenuItem from '@mui/material/MenuItem'
+import { logInfo } from '../utils/logger'
 
 // FilterBar provides a reusable dropdown filter for notification types.
 function FilterBar({ selectedFilter, onFilterChange }) {
+  const handleChange = useCallback(
+    (event) => {
+      void logInfo('component', `Filter changed to ${event.target.value}`)
+      onFilterChange(event)
+    },
+    [onFilterChange],
+  )
+
   return (
     <Box className="filter-bar" component="section" aria-label="Notification filter">
       <FormControl className="filter-control" fullWidth>
@@ -16,7 +25,7 @@ function FilterBar({ selectedFilter, onFilterChange }) {
           id="notification-filter"
           value={selectedFilter}
           label="Filter notifications"
-          onChange={onFilterChange}
+          onChange={handleChange}
           inputProps={{ 'aria-label': 'Notification filter' }}
         >
           <MenuItem value="All">All</MenuItem>

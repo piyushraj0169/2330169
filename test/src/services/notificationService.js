@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { logError, logInfo, logWarn } from '../utils/logger'
 
 const API_BASE_URL = 'http://4.224.186.213/evaluation-service/notifications'
 const API_AUTH_TOKEN = import.meta.env.VITE_NOTIFICATION_API_TOKEN || ''
@@ -83,18 +84,26 @@ function buildFallbackResponse(type, limit) {
  * Falls back to mock data when the API requires authorization.
  */
 export async function getNotifications(page = 1, limit = 10, type = '') {
+  void logInfo('api', 'Notification API request started')
+
   try {
     const response = await apiClient.get('', {
       params: buildQueryParams(page, limit, type),
     })
 
+    void logInfo('api', 'Notification API request succeeded')
     return response.data
   } catch (error) {
     const status = error?.response?.status
+    const errorMessage = convertAxiosError(error)
+
     if (status === 401) {
+      void logWarn('api', 'Notification API request failed with 401 unauthorized; using fallback notifications')
       return buildFallbackResponse(type, limit)
     }
-    throw new Error(`Notification fetch error: ${convertAxiosError(error)}`, {
+
+    void logError('api', `Notification API request failed: ${errorMessage}`)
+    throw new Error(`Notification fetch error: ${errorMessage}`, {
       cause: error,
     })
   }
@@ -105,18 +114,26 @@ export async function getNotifications(page = 1, limit = 10, type = '') {
  * Uses mock data when the API returns authorization errors.
  */
 export async function getPriorityNotifications(type = '') {
+  void logInfo('api', 'Priority notification request started')
+
   try {
     const response = await apiClient.get('', {
       params: buildQueryParams(1, 10, type),
     })
 
+    void logInfo('api', 'Priority notification request succeeded')
     return response.data
   } catch (error) {
     const status = error?.response?.status
+    const errorMessage = convertAxiosError(error)
+
     if (status === 401) {
+      void logWarn('api', 'Priority notification request failed with 401 unauthorized; using fallback notifications')
       return buildFallbackResponse(type, 10)
     }
-    throw new Error(`Priority notification fetch error: ${convertAxiosError(error)}`, {
+
+    void logError('api', `Priority notification request failed: ${errorMessage}`)
+    throw new Error(`Priority notification fetch error: ${errorMessage}`, {
       cause: error,
     })
   }

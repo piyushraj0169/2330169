@@ -1,11 +1,20 @@
-import { memo } from 'react'
+import { memo, useCallback } from 'react'
 import Box from '@mui/material/Box'
 import Pagination from '@mui/material/Pagination'
 import Typography from '@mui/material/Typography'
+import { logInfo } from '../utils/logger'
 
 function PaginationControls({ page, count, pageSize = 10, onPageChange }) {
   const pageLabel = count === 0 ? 'No pages available.' : `Showing page ${page} of ${count}`
   const pageSizeLabel = count > 0 ? ` (${pageSize} per page)` : ''
+
+  const handleChange = useCallback(
+    (event, value) => {
+      void logInfo('component', `Page changed to ${value}`)
+      onPageChange(event, value)
+    },
+    [onPageChange],
+  )
 
   return (
     <Box className="pagination-bar" component="nav" aria-label="Notification pagination">
@@ -17,7 +26,7 @@ function PaginationControls({ page, count, pageSize = 10, onPageChange }) {
         <Pagination
           page={page}
           count={count}
-          onChange={onPageChange}
+          onChange={handleChange}
           color="primary"
           shape="rounded"
           siblingCount={1}
@@ -25,6 +34,7 @@ function PaginationControls({ page, count, pageSize = 10, onPageChange }) {
           showFirstButton
           showLastButton
           className="pagination-widget"
+          aria-label="Notification page navigation"
         />
       )}
     </Box>

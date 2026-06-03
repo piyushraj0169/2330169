@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Container from '@mui/material/Container'
 import Box from '@mui/material/Box'
 import Typography from '@mui/material/Typography'
@@ -18,6 +18,7 @@ import {
   getTopPriorityNotifications,
   normalizeNotification,
 } from '../utils/notificationUtils'
+import { logInfo, logError } from '../utils/logger'
 
 export default function Dashboard() {
   const [notifications, setNotifications] = useState([])
@@ -30,53 +31,103 @@ export default function Dashboard() {
   const [notificationError, setNotificationError] = useState('')
   const [priorityError, setPriorityError] = useState('')
   const [fallbackWarning, setFallbackWarning] = useState('')
+  const isMountedRef = useRef(true)
 
   const requestType = useMemo(() => (selectedFilter === 'All' ? '' : selectedFilter), [selectedFilter])
 
   const loadNotifications = useCallback(
     async (filterType, pageNumber) => {
+      if (!isMountedRef.current) {
+        return
+      }
+
       setLoading(true)
       setNotificationError('')
       setPriorityError('')
       setFallbackWarning('')
+      void logInfo('page', 'Initial data loading started')
+      try {
+        const requests = await Promise.allSettled([
+          getNotifications(pageNumber, limit, filterType),
+          getPriorityNotifications(filterType),
+        ])
 
-      const requests = await Promise.allSettled([
-        getNotifications(pageNumber, limit, filterType),
-        getPriorityNotifications(filterType),
-      ])
-
-      const [allResult, priorityResult] = requests
-      let fallbackMessage = ''
-
-      if (allResult.status === 'fulfilled') {
-        const payload = extractNotifications(allResult.value)
-        setNotifications(payload.map(normalizeNotification))
-        setTotalPages(extractPageCount(allResult.value, limit))
-        if (allResult.value?.__fallback) {
-          fallbackMessage = allResult.value.__warning || fallbackMessage
+        if (!isMountedRef.current) {
+          return
         }
-      } else {
-        setNotifications([])
-        setTotalPages(0)
-        setNotificationError(allResult.reason?.message || 'Unable to load paginated notifications.')
-      }
 
-      if (priorityResult.status === 'fulfilled') {
-        const payload = extractNotifications(priorityResult.value).map(normalizeNotification)
-        setPriorityNotifications(getTopPriorityNotifications(payload))
-        if (priorityResult.value?.__fallback) {
-          fallbackMessage = fallbackMessage || priorityResult.value.__warning
+        const [allResult, priorityResult] = requests
+        // Debug: expose results to browser console for runtime inspection
+        // eslint-disable-next-line no-console
+        console.debug('[Dashboard] allResult:', allResult)
+        // eslint-disable-next-line no-console
+        console.debug('[Dashboard] priorityResult:', priorityResult)
+        let fallbackMessage = ''
+        let hasFailure = false
+
+        if (allResult.status === 'fulfilled') {
+          const payload = extractNotifications(allResult.value)
+          setNotifications(payload.map(normalizeNotification))
+          setTotalPages(extractPageCount(allResult.value, limit))
+          if (allResult.value?.__fallback) {
+            fallbackMessage = allResult.value.__warning || fallbackMessage
+          }
+        } else {
+          hasFailure = true
+          setNotifications([])
+          setTotalPages(0)
+          setNotificationError(allResult.reason?.message || 'Unable to load paginated notifications.')
         }
-      } else {
-        setPriorityNotifications([])
-        setPriorityError(priorityResult.reason?.message || 'Unable to load priority notifications.')
-      }
 
-      setFallbackWarning(fallbackMessage)
-      setLoading(false)
+        if (priorityResult.status === 'fulfilled') {
+          const payload = extractNotifications(priorityResult.value).map(normalizeNotification)
+          setPriorityNotifications(getTopPriorityNotifications(payload))
+          if (priorityResult.value?.__fallback) {
+            fallbackMessage = fallbackMessage || priorityResult.value.__warning
+          }
+        } else {
+          hasFailure = true
+          setPriorityNotifications([])
+          setPriorityError(priorityResult.reason?.message || 'Unable to load priority notifications.')
+        }
+
+        setFallbackWarning(fallbackMessage)
+
+        // Debug: show computed counts
+        // eslint-disable-next-line no-console
+        console.debug('[Dashboard] notifications count:', Array.isArray(allResult?.value?.notifications) ? allResult.value.notifications.length : (Array.isArray(allResult?.value) ? allResult.value.length : 0), 'priority count:', Array.isArray(priorityResult?.value?.notifications) ? priorityResult.value.notifications.length : (Array.isArray(priorityResult?.value) ? priorityResult.value.length : 0))
+
+        if (hasFailure) {
+          void logError('page', 'Initial data loading failed')
+        } else {
+          void logInfo('page', 'Initial data loading completed')
+        }
+      } catch (error) {
+        if (!isMountedRef.current) {
+          return
+        }
+        setNotificationError(error?.message || 'Unexpected error loading notifications.')
+        void logError('page', `Initial data loading failed with unexpected error: ${error?.message || 'unknown'}`)
+      } finally {
+        if (isMountedRef.current) {
+          // Debug: ensure loading toggles off
+          // eslint-disable-next-line no-console
+          console.debug('[Dashboard] finalizing load, setting loading=false')
+          setLoading(false)
+        }
+      }
     },
     [limit],
   )
+
+  useEffect(() => {
+    void logInfo('page', 'Dashboard mounted')
+
+    return () => {
+      isMountedRef.current = false
+      void logInfo('page', 'Dashboard unmounted')
+    }
+  }, [])
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
